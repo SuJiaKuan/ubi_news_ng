@@ -178,6 +178,34 @@ def resolve_google_news_url(url: str) -> str:
         return url
 
 
+def is_unresolved_google_news_link(url: str) -> bool:
+    """True if the URL is still a news.google.com redirect (resolution failed or was skipped)."""
+    return urlsplit(url).netloc == "news.google.com"
+
+
+_TITLE_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _normalize_title(title: str) -> str:
+    return _TITLE_WHITESPACE_RE.sub(" ", title.strip().lower())
+
+
+def is_likely_same_story(title_a: str, title_b: str) -> bool:
+    """Detect the same story even when Google News appends " - <Publisher>" to the original title.
+
+    This is a safety net for when redirect resolution fails (e.g. rate limited) and the same
+    article picked up from two different sources ends up with two different URLs.
+    """
+    a = _normalize_title(title_a)
+    b = _normalize_title(title_b)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    return longer.startswith(shorter) and longer[len(shorter):].lstrip().startswith("-")
+
+
 def compute_hash(normalized_url: str) -> str:
     return hashlib.sha256(normalized_url.encode("utf-8")).hexdigest()
 

@@ -80,9 +80,31 @@ def run() -> int:
 
         if url_hash in seen or url_hash in seen_hashes_this_run:
             continue
+
+        # Safety net for when Google News redirect resolution fails (e.g. rate limited):
+        # the same story picked up from another source would otherwise get a different
+        # hash and be pushed twice. Match on title instead in that case, preferring
+        # whichever copy has an actual resolved article URL.
+        duplicate_of = None
+        for existing_index, (existing_hash, existing_item) in enumerate(candidates):
+            if dedup.is_likely_same_story(item.title, existing_item.title):
+                duplicate_of = existing_index
+                break
+
+        if duplicate_of is not None:
+            existing_hash, existing_item = candidates[duplicate_of]
+            if dedup.is_unresolved_google_news_link(existing_item.link) and not dedup.is_unresolved_google_news_link(normalized):
+                seen_hashes_this_run.discard(existing_hash)
+                item.link = normalized
+                seen_hashes_this_run.add(url_hash)
+                candidates[duplicate_of] = (url_hash, item)
+            else:
+                logger.info("Skipping duplicate (same story as another candidate this run): %s", item.title)
+            continue
+
         seen_hashes_this_run.add(url_hash)
-        candidates.append((url_hash, item))
         item.link = normalized
+        candidates.append((url_hash, item))
 
     logger.info("After dedup and time filtering: %d item(s) to judge", len(candidates))
 
