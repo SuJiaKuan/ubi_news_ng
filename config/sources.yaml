@@ -1,0 +1,38 @@
+# UBI 新聞來源設定檔
+#
+# 非工程夥伴也能維護此檔案：
+# - 新增 RSS 來源：在 rss_sources 底下加一筆 name/url。
+# - 新增 Google News 關鍵字搜尋：在 google_news 底下加一筆設定。
+# - 若某個來源長期抓不到東西或一直失敗，可以把該筆整段註解掉（前面加 #）或刪除，
+#   不用改動程式碼。
+
+rss_sources:
+  - name: "BIEN"
+    url: "https://basicincome.org/feed/"
+
+  - name: "Basic Income Today"
+    url: "https://basicincometoday.com/feed/"
+
+  - name: "Scott Santens (Substack)"
+    url: "https://scottsantens.substack.com/feed"
+
+  # Scott Santens 官網已改版，原本的 /rss/、/feed/ 皆已失效（測試回傳 404）。
+  # 若未來官網恢復 RSS，取消下面註解並確認 URL 是否正確。
+  # - name: "Scott Santens (官網)"
+  #   url: "https://www.scottsantens.com/rss/"
+
+  - name: "USBIG"
+    url: "https://usbig.net/feed/"
+
+google_news:
+  - name: "Google News（英文）"
+    query: '"universal basic income" OR "unconditional basic income" OR "basic income" OR "guaranteed income"'
+    lang: "en-US"
+    geo: "US"
+    ceid: "US:en"
+
+  - name: "Google News（台灣）"
+    query: "無條件基本收入 OR 全民基本收入 OR 基本收入"
+    lang: "zh-TW"
+    geo: "TW"
+    ceid: "TW:zh-Hant"

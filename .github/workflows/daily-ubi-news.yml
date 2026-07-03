@@ -1,0 +1,51 @@
+name: Daily UBI News to Slack
+
+on:
+  schedule:
+    # 台灣時間每天早上 08:00（UTC+8）= UTC 00:00
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-ubi-news
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      LOOKBACK_DAYS: ${{ vars.LOOKBACK_DAYS }}
+      POST_WHEN_EMPTY: ${{ vars.POST_WHEN_EMPTY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily news pipeline
+        run: python src/main.py
+
+      - name: Commit updated seen state
+        if: always()
+        run: |
+          if ! git diff --quiet -- state/seen.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add state/seen.json
+            git commit -m "chore: update seen state [skip ci]"
+            git push
+          else
+            echo "No changes to state/seen.json, skip commit."
+          fi
