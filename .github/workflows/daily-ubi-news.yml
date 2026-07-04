@@ -2,8 +2,8 @@ name: Daily UBI News to Slack
 
 on:
   schedule:
-    # 台灣時間每天早上 10:00（UTC+8）= UTC 02:00
-    - cron: "0 2 * * *"
+    # 台灣時間每天早上 10:12（UTC+8）= UTC 02:12
+    - cron: "12 2 * * *"
   workflow_dispatch: {}
 
 permissions:
