@@ -130,5 +130,7 @@ class GeminiSummarizer(BaseSummarizer):
 
 def get_summarizer() -> BaseSummarizer:
     api_key = os.environ["GEMINI_API_KEY"]
-    model = os.environ.get("LLM_MODEL", DEFAULT_MODEL)
+    # GitHub Actions sets unset `vars.*` to an empty string rather than omitting the
+    # key entirely, so `os.environ.get(..., DEFAULT_MODEL)` alone would not fall back.
+    model = os.environ.get("LLM_MODEL") or DEFAULT_MODEL
     return GeminiSummarizer(api_key=api_key, model=model)
