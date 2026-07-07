@@ -12,6 +12,7 @@ from urllib.parse import quote
 
 import feedparser
 import requests
+import trafilatura
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ _USER_AGENT = (
 )
 
 _GOOGLE_NEWS_TEMPLATE = "https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
+_ARTICLE_TEXT_MAX_CHARS = 6000
 
 
 @dataclass
@@ -86,6 +88,23 @@ def fetch_google_news_source(name: str, query: str, lang: str, geo: str, ceid: s
     url = build_google_news_url(query, lang, geo, ceid)
     feed_text = _fetch_feed_text(url)
     return _parse_feed(feed_text, name)
+
+
+def fetch_article_text(url: str) -> str | None:
+    """Best-effort full-text fetch for one article. Returns None on any failure (paywall,
+    anti-bot block, network error, or a page trafilatura can't parse) so the caller can fall
+    back to the RSS excerpt instead."""
+    try:
+        resp = requests.get(url, headers={"User-Agent": _USER_AGENT}, timeout=_HTTP_TIMEOUT)
+        resp.raise_for_status()
+    except requests.RequestException:
+        logger.info("Failed to fetch article page for full-text extraction: %s", url)
+        return None
+
+    text = trafilatura.extract(resp.text)
+    if not text:
+        return None
+    return text[:_ARTICLE_TEXT_MAX_CHARS]
 
 
 def collect_all_items(config_path: Path) -> list[NewsItem]:

@@ -24,8 +24,12 @@ related to Universal Basic Income (UBI) / basic income / guaranteed income.
 Rules:
 1. Always respond in Taiwanese Traditional Chinese (台灣繁體中文). Use plain, matter-of-fact wording \
 — no marketing tone, no exclamatory language.
-2. Keep the summary to 2-3 sentences, focused on "what happened" and "how it relates to UBI / basic \
-income / guaranteed income".
+2. Write summary_zh as up to 5 sentences (use fewer if the source material doesn't support that much \
+detail — never pad or repeat). Cover every concrete detail present in the title/excerpt: what program or \
+action took place, who/where is involved, eligibility or target population, funding/payment amounts, \
+timeline or phase, comparison to prior phases, and any stated outcomes/conclusions/quotes from the \
+source. Do not add a sentence explaining how the news relates to UBI / basic income / guaranteed \
+income — just summarize what the article itself reports.
 3. No hallucination: answer only based on the title and excerpt provided by the user. If information \
 is insufficient, say so plainly rather than guessing at numbers or conclusions.
 4. Judge whether this news item is genuinely related to UBI / universal basic income / guaranteed \

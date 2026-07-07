@@ -113,7 +113,9 @@ def run() -> int:
     hash_by_url: dict[str, str] = {}
 
     for url_hash, item in candidates:
-        result = summarizer.summarize(item.title, item.raw_summary, item.source_name)
+        article_text = sources.fetch_article_text(item.link)
+        content = article_text if article_text and len(article_text) > len(item.raw_summary) else item.raw_summary
+        result = summarizer.summarize(item.title, content, item.source_name)
         if result is None:
             continue
         if not result.relevant:
