@@ -113,8 +113,20 @@ def run() -> int:
     hash_by_url: dict[str, str] = {}
 
     for url_hash, item in candidates:
-        article_text = sources.fetch_article_text(item.link)
+        article = sources.fetch_article_content(item.link)
+        article_text = article.text if article else None
         content = article_text if article_text and len(article_text) > len(item.raw_summary) else item.raw_summary
+
+        # The article page's own date metadata (when available) overrides the RSS pubDate for
+        # freshness: Google News occasionally reports a recent crawl date for an old article.
+        true_published = article.published if article and article.published else item.published
+        if true_published < cutoff:
+            logger.info(
+                "Skipping stale article (page date %s predates lookback window, RSS said %s): %s",
+                true_published.date(), item.published.date() if item.published else None, item.title,
+            )
+            continue
+
         result = summarizer.summarize(item.title, content, item.source_name)
         if result is None:
             continue
@@ -126,7 +138,7 @@ def run() -> int:
                 title_zh=result.title_zh,
                 url=item.link,
                 source_name=item.source_name,
-                published=item.published,
+                published=true_published,
                 summary_zh=result.summary_zh,
             )
         )

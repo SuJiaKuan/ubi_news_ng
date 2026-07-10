@@ -90,10 +90,20 @@ def fetch_google_news_source(name: str, query: str, lang: str, geo: str, ceid: s
     return _parse_feed(feed_text, name)
 
 
-def fetch_article_text(url: str) -> str | None:
-    """Best-effort full-text fetch for one article. Returns None on any failure (paywall,
-    anti-bot block, network error, or a page trafilatura can't parse) so the caller can fall
-    back to the RSS excerpt instead."""
+@dataclass
+class ArticleContent:
+    text: str | None
+    # The article page's own publish-date metadata, when trafilatura can find one. This is
+    # often more trustworthy than an RSS feed's pubDate: Google News in particular sometimes
+    # reports a recent crawl/republish date for an old article, which would otherwise slip
+    # past the freshness filter as if it were new.
+    published: datetime | None
+
+
+def fetch_article_content(url: str) -> ArticleContent | None:
+    """Best-effort full-text + true-publish-date fetch for one article. Returns None on any
+    fetch failure (paywall, anti-bot block, network error) so the caller can fall back to the
+    RSS excerpt/date instead."""
     try:
         resp = requests.get(url, headers={"User-Agent": _USER_AGENT}, timeout=_HTTP_TIMEOUT)
         resp.raise_for_status()
@@ -102,9 +112,22 @@ def fetch_article_text(url: str) -> str | None:
         return None
 
     text = trafilatura.extract(resp.text)
-    if not text:
-        return None
-    return text[:_ARTICLE_TEXT_MAX_CHARS]
+
+    published = None
+    try:
+        metadata = trafilatura.extract_metadata(resp.text)
+    except Exception:
+        metadata = None
+    if metadata and metadata.date:
+        try:
+            published = datetime.fromisoformat(metadata.date).replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+
+    return ArticleContent(
+        text=text[:_ARTICLE_TEXT_MAX_CHARS] if text else None,
+        published=published,
+    )
 
 
 def collect_all_items(config_path: Path) -> list[NewsItem]:
