@@ -14,6 +14,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+_API_VERSION = "v1beta"
 _MAX_RETRIES = 3
 _BACKOFF_BASE_SECONDS = 2.0
 
@@ -98,7 +99,13 @@ class GeminiSummarizer(BaseSummarizer):
 
         self._genai = genai
         self._types = __import__("google.genai.types", fromlist=["types"])
-        self._client = genai.Client(api_key=api_key)
+        # Pin the API version explicitly: google-genai 3.x switched its default from v1beta
+        # to v1, and v1 rejects system_instruction and JSON mode with a 400, which made every
+        # call fail (and the daily pipeline silently push nothing).
+        self._client = genai.Client(
+            api_key=api_key,
+            http_options=self._types.HttpOptions(api_version=_API_VERSION),
+        )
         self._model = model
 
     def summarize(self, title: str, raw_summary: str, source_name: str) -> SummaryResult | None:

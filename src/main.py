@@ -111,9 +111,13 @@ def run() -> int:
     summarizer = summarize.get_summarizer()
     push_items: list[slack.PushItem] = []
     hash_by_url: dict[str, str] = {}
+    judged_count = 0
+    failed_count = 0
 
     for url_hash, item in candidates:
-        article = sources.fetch_article_content(item.link)
+        # An unresolved news.google.com link serves Google's own page, whose date metadata is
+        # meaningless (it would make fresh articles look stale), so only fetch real article URLs.
+        article = None if dedup.is_unresolved_google_news_link(item.link) else sources.fetch_article_content(item.link)
         article_text = article.text if article else None
         content = article_text if article_text and len(article_text) > len(item.raw_summary) else item.raw_summary
 
@@ -127,8 +131,10 @@ def run() -> int:
             )
             continue
 
+        judged_count += 1
         result = summarizer.summarize(item.title, content, item.source_name)
         if result is None:
+            failed_count += 1
             continue
         if not result.relevant:
             logger.info("Judged not relevant, skipping: %s", item.title)
@@ -147,6 +153,12 @@ def run() -> int:
     logger.info("After relevance judgment: %d item(s) ready to push", len(push_items))
 
     exit_code = 0
+
+    # If every single LLM call failed, the run would otherwise look like an ordinary
+    # "no news today" and stay green. Surface it so a broken LLM setup is noticed.
+    if judged_count > 0 and failed_count == judged_count:
+        logger.error("All %d LLM call(s) failed; the LLM setup is probably broken", judged_count)
+        exit_code = 1
 
     if push_items:
         succeeded = slack.post_news_items(webhook_url, push_items)
