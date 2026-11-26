@@ -130,10 +130,13 @@ def fetch_article_content(url: str) -> ArticleContent | None:
     )
 
 
-def collect_all_items(config_path: Path) -> list[NewsItem]:
-    """Fetch every configured source in turn. A single source failure is logged and skipped."""
+def collect_all_items(config_path: Path) -> tuple[list[NewsItem], list[str]]:
+    """Fetch every configured source in turn. A single source failure is logged and skipped.
+
+    Returns the collected items and the names of the sources that failed to fetch."""
     config = load_config(config_path)
     all_items: list[NewsItem] = []
+    failed_sources: list[str] = []
 
     for source in config.get("rss_sources", []) or []:
         name = source.get("name", "unnamed source")
@@ -144,6 +147,7 @@ def collect_all_items(config_path: Path) -> list[NewsItem]:
             all_items.extend(items)
         except Exception:
             logger.warning("[source: %s] fetch failed, skipping this source", name, exc_info=True)
+            failed_sources.append(name)
 
     for source in config.get("google_news", []) or []:
         name = source.get("name", "unnamed source")
@@ -159,5 +163,6 @@ def collect_all_items(config_path: Path) -> list[NewsItem]:
             all_items.extend(items)
         except Exception:
             logger.warning("[source: %s] fetch failed, skipping this source", name, exc_info=True)
+            failed_sources.append(name)
 
-    return all_items
+    return all_items, failed_sources

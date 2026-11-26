@@ -49,6 +49,31 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _emit_partial_failure_warning(
+    *,
+    failed_sources: list[str],
+    unresolved_link_count: int,
+    article_fetch_failed_count: int,
+    llm_failed_count: int,
+    llm_judged_count: int,
+) -> None:
+    """Surface partial failures as a GitHub Actions warning annotation.
+
+    These failures are deliberately non-fatal (one bad source or article must not block the
+    whole daily push), so the job stays green; the annotation makes them visible on the run page."""
+    problems: list[str] = []
+    if failed_sources:
+        problems.append(f"{len(failed_sources)} source(s) failed to fetch ({', '.join(failed_sources)})")
+    if unresolved_link_count:
+        problems.append(f"{unresolved_link_count} Google News link(s) could not be resolved")
+    if article_fetch_failed_count:
+        problems.append(f"{article_fetch_failed_count} article page(s) could not be fetched")
+    if llm_failed_count:
+        problems.append(f"{llm_failed_count}/{llm_judged_count} LLM call(s) failed")
+    if problems:
+        print(f"::warning title=UBI news pipeline partial failures::{'; '.join(problems)}", flush=True)
+
+
 def run() -> int:
     _setup_logging()
 
@@ -56,7 +81,7 @@ def run() -> int:
     lookback_days = _env_int("LOOKBACK_DAYS", DEFAULT_LOOKBACK_DAYS)
     post_when_empty = _env_bool("POST_WHEN_EMPTY", False)
 
-    raw_items = sources.collect_all_items(CONFIG_PATH)
+    raw_items, failed_sources = sources.collect_all_items(CONFIG_PATH)
     logger.info("Fetch complete: %d item(s) (before dedup)", len(raw_items))
 
     seen = dedup.load_seen(SEEN_PATH)
@@ -64,6 +89,7 @@ def run() -> int:
 
     candidates: list[tuple[str, sources.NewsItem]] = []
     seen_hashes_this_run: set[str] = set()
+    unresolved_link_count = 0
 
     for item in raw_items:
         if item.published is not None and item.published < cutoff:
@@ -75,6 +101,8 @@ def run() -> int:
             continue
 
         resolved_link = dedup.resolve_google_news_url(item.link)
+        if dedup.is_unresolved_google_news_link(item.link) and dedup.is_unresolved_google_news_link(resolved_link):
+            unresolved_link_count += 1
         normalized = dedup.normalize_url(resolved_link)
         url_hash = dedup.compute_hash(normalized)
 
@@ -113,11 +141,14 @@ def run() -> int:
     hash_by_url: dict[str, str] = {}
     judged_count = 0
     failed_count = 0
+    article_fetch_failed_count = 0
 
     for url_hash, item in candidates:
         # An unresolved news.google.com link serves Google's own page, whose date metadata is
         # meaningless (it would make fresh articles look stale), so only fetch real article URLs.
         article = None if dedup.is_unresolved_google_news_link(item.link) else sources.fetch_article_content(item.link)
+        if article is None and not dedup.is_unresolved_google_news_link(item.link):
+            article_fetch_failed_count += 1
         article_text = article.text if article else None
         content = article_text if article_text and len(article_text) > len(item.raw_summary) else item.raw_summary
 
@@ -182,6 +213,14 @@ def run() -> int:
 
     seen = dedup.prune_seen(seen, max_age_days=SEEN_MAX_AGE_DAYS)
     dedup.save_seen(SEEN_PATH, seen)
+
+    _emit_partial_failure_warning(
+        failed_sources=failed_sources,
+        unresolved_link_count=unresolved_link_count,
+        article_fetch_failed_count=article_fetch_failed_count,
+        llm_failed_count=failed_count,
+        llm_judged_count=judged_count,
+    )
 
     return exit_code
 
